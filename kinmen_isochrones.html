@@ -100,7 +100,15 @@
                 </select>
             </label>
             <label>
-                步行時間(分鐘):
+                交通方式:
+                <select id="transport-mode">
+                    <option value="foot-walking">走路</option>
+                    <option value="cycling-regular">自行車</option>
+                    <option value="driving-car">汽車 / 機車</option>
+                </select>
+            </label>
+            <label>
+                時間(分鐘):
                 <input type="number" id="time-input" value="15" min="1" max="60" style="width: 60px;">
             </label>
             <button id="update-btn" onclick="updateMap()">更新地圖與範圍</button>
@@ -112,8 +120,8 @@
     <div class="info-box">
         <h4 style="margin-top: 0; margin-bottom: 10px;">地圖說明</h4>
         <p style="margin: 0; font-size: 14px; color: #333;">
-            📍 目前已匯入金門地區約 20 多間 7-ELEVEN 與全家便利商店位置。<br>
-            🚶‍♂️ 紅色半透明區域代表步行 <strong id="time-display">15</strong> 分鐘內可抵達的範圍。<br><br>
+            📍 目前已匯入金門地區 41 間 7-ELEVEN 與全家便利商店位置。<br>
+            🗺️ 紅色半透明區域代表以 <strong id="mode-display">走路</strong> 方式，<strong id="time-display">15</strong> 分鐘內可抵達的範圍。<br><br>
             <small style="color: #e74c3c;">*更新地圖時，因需逐一運算路線，請耐心等候幾秒鐘。</small>
         </p>
     </div>
@@ -130,34 +138,253 @@
         
         // 金門 7-11 與全家 座標資料 (已補齊全家數量並移除萊爾富)
         const storesData = [
-            // 7-ELEVEN (來自 OSM)
-            {"name": "7-Eleven", "lat": 24.4331654, "lng": 118.3204834, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4387746, "lng": 118.3197293, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4328747, "lng": 118.314452, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4293906, "lng": 118.3158414, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4171643, "lng": 118.3087677, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4424144, "lng": 118.4143672, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4361879, "lng": 118.4096183, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4417973, "lng": 118.362573, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4502544, "lng": 118.3212768, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4362141, "lng": 118.3186573, "type": "711"}, 
-            {"name": "7-Eleven", "lat": 24.4335363, "lng": 118.319924, "type": "711"},
-            // 全家便利商店 (手動補齊主要店舖)
-            {"name": "全家 金門大學店", "lat": 24.4420, "lng": 118.3245, "type": "FamilyMart"},
-            {"name": "全家 金門金山店", "lat": 24.4255, "lng": 118.3210, "type": "FamilyMart"},
-            {"name": "全家 金門伯玉店", "lat": 24.4371, "lng": 118.3305, "type": "FamilyMart"},
-            {"name": "全家 金門金寧店", "lat": 24.4442, "lng": 118.3182, "type": "FamilyMart"},
-            {"name": "全家 金門星劃店", "lat": 24.4350, "lng": 118.3250, "type": "FamilyMart"},
-            {"name": "全家 金門城隍店", "lat": 24.4320, "lng": 118.3175, "type": "FamilyMart"},
-            {"name": "全家 金門沙美店", "lat": 24.4899, "lng": 118.4116, "type": "FamilyMart"},
-            {"name": "全家 金門山外店", "lat": 24.4414, "lng": 118.4144, "type": "FamilyMart"},
-            {"name": "全家 金門金湖店", "lat": 24.4430, "lng": 118.4170, "type": "FamilyMart"},
-            {"name": "全家 金門瓊林店", "lat": 24.4560, "lng": 118.3750, "type": "FamilyMart"},
-            {"name": "全家 金門烈嶼店", "lat": 24.4304, "lng": 118.2461, "type": "FamilyMart"},
-            {"name": "全家 金門水頭店", "lat": 24.4150, "lng": 118.2850, "type": "FamilyMart"},
-            {"name": "全家 金門太武店", "lat": 24.4580, "lng": 118.3950, "type": "FamilyMart"},
-            {"name": "全家 金門料羅店", "lat": 24.4250, "lng": 118.4350, "type": "FamilyMart"}
-        ];
+            {
+                        "name": "7-ELEVEN 鑫金港門市",
+                        "lat": 24.418007,
+                        "lng": 118.292115,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金門城門市",
+                        "lat": 24.402934,
+                        "lng": 118.307297,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金豪門市",
+                        "lat": 24.417197,
+                        "lng": 118.308647,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金誼門市",
+                        "lat": 24.42938,
+                        "lng": 118.315687,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金亮門市",
+                        "lat": 24.432829,
+                        "lng": 118.314407,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金喬門市",
+                        "lat": 24.430989,
+                        "lng": 118.321121,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金民門市",
+                        "lat": 24.433519,
+                        "lng": 118.319925,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金生門市",
+                        "lat": 24.436151,
+                        "lng": 118.31867,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金石門市",
+                        "lat": 24.438767,
+                        "lng": 118.319771,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 列嶼門市",
+                        "lat": 24.42913,
+                        "lng": 118.244219,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 小金門市",
+                        "lat": 24.428607,
+                        "lng": 118.247355,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金央門市",
+                        "lat": 24.436079,
+                        "lng": 118.327448,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 下埔下門市",
+                        "lat": 24.441794,
+                        "lng": 118.312004,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金大門市",
+                        "lat": 24.450133,
+                        "lng": 118.321317,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金寧門市",
+                        "lat": 24.449498,
+                        "lng": 118.337692,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 樂多門市",
+                        "lat": 24.440487,
+                        "lng": 118.338893,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金航門市",
+                        "lat": 24.436157,
+                        "lng": 118.368847,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金冠門市",
+                        "lat": 24.436259,
+                        "lng": 118.409336,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 鈦湖門市",
+                        "lat": 24.438746,
+                        "lng": 118.418556,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 太武山門市",
+                        "lat": 24.442929,
+                        "lng": 118.410187,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 新山外門市",
+                        "lat": 24.442413,
+                        "lng": 118.414278,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 金囍門市",
+                        "lat": 24.441849,
+                        "lng": 118.414827,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 新再發門市",
+                        "lat": 24.440905,
+                        "lng": 118.416825,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 署醫門市",
+                        "lat": 24.441326,
+                        "lng": 118.418701,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 中蘭門市",
+                        "lat": 24.465562,
+                        "lng": 118.387802,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 新沙美門市",
+                        "lat": 24.488607,
+                        "lng": 118.413792,
+                        "type": "711"
+            },
+            {
+                        "name": "7-ELEVEN 陽翟門市",
+                        "lat": 24.477666,
+                        "lng": 118.42861,
+                        "type": "711"
+            },
+            {
+                        "name": "全家 金山店",
+                        "lat": 24.428872444444973,
+                        "lng": 118.32216206573263,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金城店",
+                        "lat": 24.433444632171042,
+                        "lng": 118.31949223927997,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 城隍店",
+                        "lat": 24.432487629057682,
+                        "lng": 118.31580053622324,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金華店",
+                        "lat": 24.438149280586245,
+                        "lng": 118.31907040512623,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 小金門店",
+                        "lat": 24.430356,
+                        "lng": 118.245996,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金寧店",
+                        "lat": 24.432236499207644,
+                        "lng": 118.33072581160067,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金大店",
+                        "lat": 24.445471709116838,
+                        "lng": 118.32532839662369,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 料羅店",
+                        "lat": 24.421279180274908,
+                        "lng": 118.4395638830168,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金發店",
+                        "lat": 24.438417602288823,
+                        "lng": 118.40788699415494,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金湖店",
+                        "lat": 24.441933889796815,
+                        "lng": 118.41226435878565,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 成功店",
+                        "lat": 24.441933889860668,
+                        "lng": 118.39106417905298,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 瓊義店",
+                        "lat": 24.44716906953589,
+                        "lng": 118.37707377837044,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 瓊林店",
+                        "lat": 24.456701226262435,
+                        "lng": 118.37063647744291,
+                        "type": "FamilyMart"
+            },
+            {
+                        "name": "全家 金沙店",
+                        "lat": 24.48904135818266,
+                        "lng": 118.41282813301162,
+                        "type": "FamilyMart"
+            }
+];
 
         // ==========================================
         // 地圖初始化
@@ -187,11 +414,14 @@
 
             // 取得使用者設定
             const selectedType = document.getElementById('store-filter').value;
+            const selectedMode = document.getElementById('transport-mode').value;
+            const modeText = document.getElementById('transport-mode').options[document.getElementById('transport-mode').selectedIndex].text;
             let timeMinutes = parseInt(document.getElementById('time-input').value);
             if (isNaN(timeMinutes) || timeMinutes < 1) timeMinutes = 15;
             
             // 更新 UI 顯示
             document.getElementById('time-display').innerText = timeMinutes;
+            document.getElementById('mode-display').innerText = modeText;
             const timeSeconds = timeMinutes * 60;
 
             // 清除舊圖層
@@ -220,7 +450,7 @@
                 };
 
                 try {
-                    const response = await fetch('https://api.openrouteservice.org/v2/isochrones/foot-walking', {
+                    const response = await fetch(`https://api.openrouteservice.org/v2/isochrones/${selectedMode}`, {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
@@ -248,7 +478,7 @@
                     
                     currentLayers.push(isochroneLayer);
 
-                    marker.setPopupContent(`<b>${store.name}</b><br>🚶 已標示步行 ${timeMinutes} 分鐘範圍`);
+                    marker.setPopupContent(`<b>${store.name}</b><br>✅ 已標示 ${modeText} ${timeMinutes} 分鐘範圍`);
                 } catch (error) {
                     console.error('Error fetching isochrone:', error);
                     marker.setPopupContent(`<b>${store.name}</b><br><span style="color:red;">無法載入範圍 (可能已達 API 上限)</span>`);
