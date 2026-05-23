@@ -583,11 +583,24 @@
                     
                     let mergedIsochrones = allFeatures[0];
                     for (let i = 1; i < allFeatures.length; i++) {
-                        mergedIsochrones = turf.union(mergedIsochrones, allFeatures[i]);
+                        try {
+                            // 修正 Turf 6 中 union 必須接受 FeatureCollection 的問題
+                            let fc = turf.featureCollection([mergedIsochrones, allFeatures[i]]);
+                            let res = turf.union(fc);
+                            if (res) mergedIsochrones = res;
+                        } catch(e) {
+                            console.warn("Union skip:", e);
+                        }
                     }
 
                     // 3. 用外框扣除掉合併後的等時線區域
-                    const uncoveredArea = turf.difference(maskPolygon, mergedIsochrones);
+                    let uncoveredArea;
+                    try {
+                        uncoveredArea = turf.difference(maskPolygon, mergedIsochrones);
+                    } catch(e) {
+                        console.warn("Difference skip:", e);
+                        uncoveredArea = maskPolygon; // fallback
+                    }
 
                     // 4. 畫到地圖上，呈現「遮罩」效果，被蓋住的代表無服務區
                     const layer = L.geoJSON(uncoveredArea, {
@@ -608,9 +621,8 @@
             } else if (analysisMode === 'voronoi') {
                 // 模式四：勢力劃分 (Voronoi 絕對領域)
                 try {
-                    // 1. 取得目前地圖範圍當作 Voronoi 的計算邊界
-                    const bounds = map.getBounds();
-                    const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+                    // 1. 取得大金門與小金門的固定邊界當作 Voronoi 的計算邊界，避免縮放地圖時座標出界導致運算崩潰
+                    const bbox = [118.150, 24.350, 118.500, 24.550];
                     
                     // 2. 準備所有店家的 FeatureCollection
                     const points = turf.featureCollection(
