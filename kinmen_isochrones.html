@@ -409,6 +409,27 @@
         // 儲存目前地圖上的圖層，方便清除
         let currentLayers = [];
         let isFetching = false;
+
+        // --- 新增：按鈕冷卻倒數功能 ---
+        function startCooldown(seconds) {
+            const btn = document.getElementById('update-btn');
+            btn.disabled = true;
+            let remain = seconds;
+            btn.innerText = `冷卻中 (${remain}s)...`;
+            
+            const timer = setInterval(() => {
+                remain--;
+                if (remain <= 0) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.innerText = "更新地圖與範圍";
+                } else {
+                    btn.innerText = `冷卻中 (${remain}s)...`;
+                }
+            }, 1000);
+        }
+        // ------------------------------
+
         const isochroneCache = {}; // 記憶體快取
 
         const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -465,6 +486,7 @@
 
             // 收集所有的 GeoJSON Features，等全部抓完後再依據模式繪製
             let allFeatures = [];
+            let hasPrecomputed = true; // 預設標記，檢查是否全從快取讀取
 
             // 批次發送 API 請求
             for (let c = 0; c < chunks.length; c++) {
@@ -473,17 +495,18 @@
                 let data;
                 
                 // 1. 檢查是否有預先運算的資料
-                let hasPrecomputed = false;
+                let foundInPre = false;
                 if (typeof precomputedIsochrones !== 'undefined' && 
                     precomputedIsochrones[selectedMode] && 
                     precomputedIsochrones[selectedMode][tSecStr] &&
                     precomputedIsochrones[selectedMode][tSecStr][c]) {
                     
                     data = precomputedIsochrones[selectedMode][tSecStr][c];
-                    hasPrecomputed = true;
+                    foundInPre = true;
                 }
                 
-                if (!hasPrecomputed) {
+                if (!foundInPre) {
+                    hasPrecomputed = false; // 確實發送了網路請求
                     // 2. 檢查記憶體快取
                     const cacheKey = `${selectedMode}_${timeSeconds}_${chunk.map(s => s.name).join('-')}`;
                     if (isochroneCache[cacheKey]) {
@@ -537,10 +560,9 @@
 
             // 若抓取失敗或無資料，提前中止
             if (allFeatures.length === 0) {
-                alert("API 請求失敗或超過限制（每分鐘最高 40 次）。請稍後一分鐘再試，或使用常見的預設時間 (如步行 15 分鐘) 以便讀取快取資料！");
-                btn.innerText = "更新地圖與範圍";
-                btn.disabled = false;
+                alert("API 請求失敗或超過限制。按鈕將進入 60 秒冷卻倒數，請稍後再試！\n\n💡 提示：輸入 5, 10, 15, 20, 25, 30 分鐘可直接使用快取，無須冷卻！");
                 isFetching = false;
+                startCooldown(60); // API 失敗強制冷卻 60 秒
                 return;
             }
 
@@ -690,12 +712,16 @@
                 }
             }
 
-            btn.innerText = "更新地圖與範圍";
-            btn.disabled = false;
             isFetching = false;
+            
+            // 確保有切換按鈕文字回來 (若為 API 查詢，給予 15 秒基礎冷卻避免超額)
+            if (!hasPrecomputed) {
+                startCooldown(15);
+            } else {
+                btn.innerText = "更新地圖與範圍";
+                btn.disabled = false;
+            }
         }
-
-        
 
         // 初始載入一次
         updateMap();
