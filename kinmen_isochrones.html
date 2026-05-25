@@ -135,6 +135,8 @@
         </p>
     </div>
 
+    <!-- 預先運算的資料 (減少 API 請求) -->
+    <script src="precomputed_data.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -531,6 +533,15 @@
                         m.marker.setPopupContent(`<b>${store.name}</b><br>✅ 已讀取範圍`);
                     }
                 });
+            }
+
+            // 若抓取失敗或無資料，提前中止
+            if (allFeatures.length === 0) {
+                alert("API 請求失敗或超過限制（每分鐘最高 40 次）。請稍後一分鐘再試，或使用常見的預設時間 (如步行 15 分鐘) 以便讀取快取資料！");
+                btn.innerText = "更新地圖與範圍";
+                btn.disabled = false;
+                isFetching = false;
+                return;
             }
 
             // ==========================================
