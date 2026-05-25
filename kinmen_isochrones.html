@@ -139,6 +139,8 @@
     <script src="precomputed_data.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Turf JS (幾何運算) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
     <script>
         // ==========================================
@@ -617,9 +619,8 @@
                     let mergedIsochrones = allFeatures[0];
                     for (let i = 1; i < allFeatures.length; i++) {
                         try {
-                            // 修正 Turf 6 中 union 必須接受 FeatureCollection 的問題
-                            let fc = turf.featureCollection([mergedIsochrones, allFeatures[i]]);
-                            let res = turf.union(fc);
+                            // 修正 Turf 6 中 union 接收兩個 polygon 的語法
+                            let res = turf.union(mergedIsochrones, allFeatures[i]);
                             if (res) mergedIsochrones = res;
                         } catch(e) {
                             console.warn("Union skip:", e);
