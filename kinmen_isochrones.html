@@ -488,33 +488,50 @@
 
             // 收集所有的 GeoJSON Features，等全部抓完後再依據模式繪製
             let allFeatures = [];
-            let hasPrecomputed = true; // 預設標記，檢查是否全從快取讀取
+            let hasPrecomputed = false;
 
-            // 批次發送 API 請求
-            for (let c = 0; c < chunks.length; c++) {
-                const chunk = chunks[c];
-                const tSecStr = String(timeSeconds);
-                let data;
+            // 1. 檢查是否有預先運算的資料 (必須確保該時間點的所有預算資料都存在)
+            if (typeof precomputedIsochrones !== 'undefined' && 
+                precomputedIsochrones[selectedMode] && 
+                precomputedIsochrones[selectedMode][timeSeconds]) {
                 
-                // 1. 檢查是否有預先運算的資料
-                let foundInPre = false;
-                if (typeof precomputedIsochrones !== 'undefined' && 
-                    precomputedIsochrones[selectedMode] && 
-                    precomputedIsochrones[selectedMode][tSecStr] &&
-                    precomputedIsochrones[selectedMode][tSecStr][c]) {
-                    
-                    data = precomputedIsochrones[selectedMode][tSecStr][c];
-                    foundInPre = true;
+                hasPrecomputed = true;
+                const preData = precomputedIsochrones[selectedMode][timeSeconds];
+                
+                // 遍歷預算資料的每個 chunk，透過原始 storesData 的索引對照回真實店家
+                for (let c = 0; c < preData.length; c++) {
+                    const chunkData = preData[c];
+                    if (chunkData && chunkData.features) {
+                        chunkData.features.forEach(f => {
+                            const globalIndex = c * 5 + f.properties.group_index;
+                            const store = storesData[globalIndex];
+                            // 只有符合目前篩選條件的店家，才加入 allFeatures
+                            if (store && (selectedType === "All" || store.type === selectedType)) {
+                                f.properties.store = store;
+                                allFeatures.push(f);
+                            }
+                        });
+                    }
                 }
                 
-                if (!foundInPre) {
-                    hasPrecomputed = false; // 確實發送了網路請求
-                    // 2. 檢查記憶體快取
+                // 更新 Marker 彈出視窗
+                filteredStores.forEach((store) => {
+                    const m = markers.find(item => item.store === store);
+                    if (m) m.marker.setPopupContent(`<b>${store.name}</b><br>✅ 已讀取範圍`);
+                });
+
+            } else {
+                // 2. 如果沒有快取，則批次發送 API 請求 (針對 filteredStores 進行 Chunking)
+                for (let c = 0; c < chunks.length; c++) {
+                    const chunk = chunks[c];
                     const cacheKey = `${selectedMode}_${timeSeconds}_${chunk.map(s => s.name).join('-')}`;
+                    let data;
+                    
+                    // 檢查記憶體快取
                     if (isochroneCache[cacheKey]) {
                         data = isochroneCache[cacheKey];
                     } else {
-                        // 3. 發送 API 請求
+                        // 發送 API 請求
                         const requestBody = {
                             locations: chunk.map(s => [s.lng, s.lat]), 
                             range: [timeSeconds],
@@ -540,24 +557,21 @@
                             console.error('Fetch error:', error);
                         }
                     }
-                }
 
-                // 將這批的 features 收集起來
-                if (data && data.features) {
-                    data.features.forEach(f => {
-                        // 附加上原始的 store 資訊以利後續使用
-                        f.properties.store = chunk[f.properties.group_index];
-                        allFeatures.push(f);
+                    // 將這批的 features 收集起來
+                    if (data && data.features) {
+                        data.features.forEach(f => {
+                            f.properties.store = chunk[f.properties.group_index];
+                            allFeatures.push(f);
+                        });
+                    }
+
+                    // 更新 Marker 彈出視窗
+                    chunk.forEach((store) => {
+                        const m = markers.find(item => item.store === store);
+                        if (m) m.marker.setPopupContent(`<b>${store.name}</b><br>✅ 已讀取範圍`);
                     });
                 }
-
-                // 更新 Marker 彈出視窗
-                chunk.forEach((store) => {
-                    const m = markers.find(item => item.store === store);
-                    if (m) {
-                        m.marker.setPopupContent(`<b>${store.name}</b><br>✅ 已讀取範圍`);
-                    }
-                });
             }
 
             // 若抓取失敗或無資料，提前中止
