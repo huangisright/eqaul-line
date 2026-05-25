@@ -620,10 +620,9 @@
             } else if (analysisMode === 'uncovered') {
                 // 模式三：拓點機會 (反轉顯示，只顯示沒有被覆蓋的區域)
                 try {
-                    // 1. 建立一個包含整個金門視野的「外框多邊形」
-                    // 取得目前地圖可視範圍的邊界 (西, 南, 東, 北)
-                    const bounds = map.getBounds();
-                    const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+                    // 1. 建立一個包含整個大金門與小金門的「外框多邊形」
+                    // 避免使用 map.getBounds()，否則縮放平移後邊界會被異常切斷
+                    const bbox = [118.150, 24.350, 118.500, 24.550]; // 涵蓋金門全區的固定經緯度
                     const maskPolygon = turf.bboxPolygon(bbox);
 
                     // 2. 將所有的等時線合併 (Union)
