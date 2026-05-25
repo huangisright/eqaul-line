@@ -636,14 +636,13 @@
                         uncoveredArea = maskPolygon; // fallback
                     }
 
-                    // 4. 畫到地圖上，呈現「遮罩」效果，被蓋住的代表無服務區
+                    // 4. 畫到地圖上，用亮色系凸顯「拓點機會」區域（即未被等時線覆蓋的區域）
                     const layer = L.geoJSON(uncoveredArea, {
                         style: {
-                            color: '#2c3e50',
-                            weight: 1,
-                            opacity: 0.3,
-                            fillColor: '#34495e',
-                            fillOpacity: 0.65 // 深色遮罩代表「未被覆蓋」
+                            fillColor: '#FF4136', // 亮紅色凸顯無服務區
+                            fillOpacity: 0.4,
+                            color: '#FF4136',
+                            weight: 1
                         }
                     }).addTo(map);
                     currentLayers.push(layer);
