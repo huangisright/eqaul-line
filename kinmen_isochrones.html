@@ -698,10 +698,21 @@
                                 if (intersection) {
                                     intersection.properties = { store: store };
                                     voronoiFeatures.push(intersection);
+                                } else {
+                                    // 即使沒交集，也要畫出原始 Voronoi，避免破洞
+                                    currentVoronoi.properties = { store: store };
+                                    voronoiFeatures.push(currentVoronoi);
                                 }
                             } catch (e) {
                                 console.warn("Intersect failed for store", store.name, e);
+                                // 交集運算失敗時退回原始 Voronoi
+                                currentVoronoi.properties = { store: store };
+                                voronoiFeatures.push(currentVoronoi);
                             }
+                        } else {
+                            // 若等時線抓取失敗，也要畫出原始 Voronoi 避免破洞
+                            currentVoronoi.properties = { store: store };
+                            voronoiFeatures.push(currentVoronoi);
                         }
                     });
 
