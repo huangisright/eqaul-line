@@ -616,6 +616,20 @@
                 }
             }
 
+            // 針對遺失或 API 失敗的店家，自動合成一個圓形的「備用等時線」
+            filteredStores.forEach(store => {
+                const exists = allFeatures.find(f => f.properties.store.name === store.name);
+                if (!exists) {
+                    console.warn(`為 ${store.name} 建立備用等時線 (API 或快取失敗)`);
+                    let speedKmh = selectedMode === 'foot-walking' ? 5 : (selectedMode === 'cycling-regular' ? 15 : 40);
+                    let radiusKm = (speedKmh * timeSeconds / 3600) * 0.8; // 乘以 0.8 模擬實際路網繞行折扣
+                    if (radiusKm < 0.1) radiusKm = 0.1; // 最小半徑 100 公尺
+                    let fallbackFeature = turf.buffer(turf.point([store.lng, store.lat]), radiusKm, {units: 'kilometers'});
+                    fallbackFeature.properties = { store: store, isFallback: true };
+                    allFeatures.push(fallbackFeature);
+                }
+            });
+
             // 若抓取失敗或無資料，提前中止
             if (allFeatures.length === 0) {
                 alert("API 請求失敗或超過限制。按鈕將進入 60 秒冷卻倒數，請稍後再試！\n\n💡 提示：輸入 5, 10, 15, 20, 25, 30 分鐘可直接使用快取，無須冷卻！");
