@@ -1,0 +1,1 @@
+const kinmenVillagesData = {"type": "FeatureCollection", "features": []};

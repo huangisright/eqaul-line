@@ -137,6 +137,7 @@
 
     <!-- 預先運算的資料 (減少 API 請求) -->
     <script src="precomputed_data.js"></script>
+    <script src="kinmen_villages.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Turf JS (幾何運算) -->
@@ -407,6 +408,18 @@
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19
         }).addTo(map);
+
+        // 加入行政區界線 (村里級)
+        if (typeof kinmenVillagesData !== 'undefined') {
+            L.geoJSON(kinmenVillagesData, {
+                style: {
+                    color: "#888888",
+                    weight: 1,
+                    dashArray: "3, 3",
+                    fillOpacity: 0
+                }
+            }).addTo(map);
+        }
 
         // 儲存目前地圖上的圖層，方便清除
         let currentLayers = [];
