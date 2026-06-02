@@ -121,6 +121,7 @@
                 <input type="number" id="time-input" value="15" min="1" max="60" style="width: 60px;">
             </label>
             <button id="update-btn" onclick="updateMap()">更新地圖與範圍</button>
+            <button id="clear-custom-btn" onclick="clearCustomPoints()" style="background-color: #e74c3c; display: none;">清除自訂點</button>
         </div>
     </div>
     
@@ -449,6 +450,31 @@
 
         const delay = ms => new Promise(res => setTimeout(res, ms));
 
+        // 儲存自訂的拓點
+        let customStoresData = [];
+        let customPointCounter = 1;
+
+        // 點擊地圖新增自訂點
+        map.on('click', function(e) {
+            const newStore = {
+                name: `自訂拓點 ${customPointCounter++}`,
+                lat: e.latlng.lat,
+                lng: e.latlng.lng,
+                type: 'custom'
+            };
+            customStoresData.push(newStore);
+            document.getElementById('clear-custom-btn').style.display = 'inline-block';
+            updateMap(); // 立即重新運算並繪製
+        });
+
+        // 清除自訂點
+        function clearCustomPoints() {
+            customStoresData = [];
+            customPointCounter = 1;
+            document.getElementById('clear-custom-btn').style.display = 'none';
+            updateMap();
+        }
+
         // ==========================================
         // 核心邏輯
         // ==========================================
@@ -476,10 +502,10 @@
             currentLayers.forEach(layer => map.removeLayer(layer));
             currentLayers = [];
 
-            // 篩選資料
-            const filteredStores = storesData.filter(store => {
-                if (selectedType === "All") return true;
-                return store.type === selectedType;
+            // 篩選資料 (包含內建便利商店與使用者自訂點)
+            const currentStores = storesData.concat(customStoresData);
+            const filteredStores = currentStores.filter(store => {
+                return selectedType === "All" || store.type === selectedType || store.type === 'custom';
             });
 
             // 準備載入
@@ -493,7 +519,21 @@
             // 先把所有地標標示上去
             const markers = [];
             filteredStores.forEach(store => {
-                const marker = L.marker([store.lat, store.lng]).addTo(map)
+                // 根據類別給予不同顏色
+                let markerColor = 'blue'; // 預設
+                if (store.type === 'custom') markerColor = 'red'; // 自訂點用紅色
+                else if (store.type === '711') markerColor = 'green';
+                else if (store.type === 'FamilyMart') markerColor = 'orange';
+
+                // Leaflet 預設不支援直接改 marker 顏色，這裡用一個簡單的內建 SVG 圖標
+                const customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color:${markerColor};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.5);"></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                const marker = L.marker([store.lat, store.lng], {icon: customIcon}).addTo(map)
                     .bindPopup(`<b>${store.name}</b><br>正在載入路線範圍...`);
                 currentLayers.push(marker);
                 markers.push({ store, marker });
