@@ -1,151 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>金門便利商店步行等時線地圖 (Isochrone Map)</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f4f9;
-            overflow: hidden;
-        }
-        #header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 15px 20px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            position: relative;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-        h2 {
-            margin: 0;
-            font-size: 20px;
-        }
-        .controls {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            background: rgba(255,255,255,0.1);
-            padding: 8px 15px;
-            border-radius: 8px;
-            margin-top: 5px;
-        }
-        .controls label {
-            font-size: 14px;
-        }
-        .controls select, .controls input {
-            padding: 5px 8px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-        .controls button {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .controls button:hover {
-            background: #2980b9;
-        }
-        .controls button:disabled {
-            background: #95a5a6;
-            cursor: not-allowed;
-        }
-        #map {
-            width: 100vw;
-            height: calc(100vh - 70px);
-        }
-        .info-box {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            z-index: 1000;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            max-width: 320px;
-            line-height: 1.5;
-        }
-    </style>
-</head>
-<body>
-
-    <div id="header">
-        <h2>金門便利商店步行等時線地圖</h2>
-        <div class="controls">
-            <label>
-                店家篩選:
-                <select id="store-filter">
-                    <option value="All">綜合 (全部)</option>
-                    <option value="711">7-ELEVEN</option>
-                    <option value="FamilyMart">全家便利商店</option>
-                </select>
-            </label>
-                        <label>
-                分析視角:
-                <select id="analysis-mode">
-                    <option value="standard">一般顯示 (依品牌分色)</option>
-                    <option value="competition">競爭熱區 (疊加深淺)</option>
-                    <option value="uncovered">拓點機會 (只顯示未覆蓋白區)</option>
-                    <option value="voronoi">勢力劃分 (Voronoi 絕對領域)</option>
-                </select>
-            </label>
-            <label>
-                交通方式:
-                <select id="transport-mode">
-                    <option value="foot-walking">走路</option>
-                    <option value="cycling-regular">自行車</option>
-                    <option value="driving-car">汽車 / 機車</option>
-                </select>
-            </label>
-            <label>
-                時間(分鐘):
-                <input type="number" id="time-input" value="15" min="1" max="60" style="width: 60px;">
-            </label>
-            <button id="update-btn" onclick="updateMap()">更新地圖與範圍</button>
-            <button id="clear-custom-btn" onclick="clearCustomPoints()" style="background-color: #e74c3c; display: none;">清除自訂點</button>
-        </div>
-    </div>
-    
-    <div id="map"></div>
-    
-    <div class="info-box">
-        <h4 style="margin-top: 0; margin-bottom: 10px;">地圖說明</h4>
-        <p style="margin: 0; font-size: 14px; color: #333;">
-            📍 目前已匯入金門地區 41 間 7-ELEVEN 與全家便利商店位置。<br>
-            🖱️ <b>點擊地圖</b> 可隨時新增「自訂拓點」，測試新店面的覆蓋率與勢力範圍。<br>
-            🗺️ 紅色半透明區域代表以 <strong id="mode-display">走路</strong> 方式，<strong id="time-display">15</strong> 分鐘內可抵達的範圍。<br><br>
-            <small style="color: #e74c3c;">*更新地圖時，因需逐一運算路線，請耐心等候幾秒鐘。</small>
-        </p>
-    </div>
-
-    <!-- 預先運算的資料 (減少 API 請求) -->
-    <script src="precomputed_data.js"></script>
-    <script src="kinmen_boundary_fc.js"></script>
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Turf JS (幾何運算) -->
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-
-    <script>
         // ==========================================
         // 基本設定與資料
         // ==========================================
@@ -780,16 +632,7 @@
 
             if (analysisMode === 'standard') {
                 // 模式一：一般顯示，根據品牌上色
-                let displayFeatures = [];
-                allFeatures.forEach(f => {
-                    const clipped = getClippedFeatures(f);
-                    clipped.forEach(p => {
-                        p.properties = f.properties;
-                        displayFeatures.push(p);
-                    });
-                });
-                
-                const layer = L.geoJSON({ type: "FeatureCollection", features: displayFeatures }, {
+                const layer = L.geoJSON({ type: "FeatureCollection", features: allFeatures }, {
                     style: function(feature) {
                         const store = feature.properties.store;
                         return {
@@ -805,16 +648,7 @@
 
             } else if (analysisMode === 'competition') {
                 // 模式二：競爭熱區 (Heatmap)，全部塗同一個顏色且去除邊框，讓重疊處顏色加深
-                let displayFeatures = [];
-                allFeatures.forEach(f => {
-                    const clipped = getClippedFeatures(f);
-                    clipped.forEach(p => {
-                        p.properties = f.properties;
-                        displayFeatures.push(p);
-                    });
-                });
-
-                const layer = L.geoJSON({ type: "FeatureCollection", features: displayFeatures }, {
+                const layer = L.geoJSON({ type: "FeatureCollection", features: allFeatures }, {
                     style: function(feature) {
                         return {
                             color: 'transparent',
@@ -990,6 +824,3 @@
 
         // 初始載入一次
         updateMap();
-    </script>
-</body>
-</html>
