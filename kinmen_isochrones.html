@@ -792,11 +792,20 @@
                 const layer = L.geoJSON({ type: "FeatureCollection", features: displayFeatures }, {
                     style: function(feature) {
                         const store = feature.properties.store;
+                        let borderColor = '#2980b9'; // 預設藍 (全家)
+                        let fillColor = '#3498db';
+                        if (store.type === '711') {
+                            borderColor = '#27ae60';
+                            fillColor = '#2ecc71';
+                        } else if (store.type === 'custom') {
+                            borderColor = '#c0392b'; // 自訂紅
+                            fillColor = '#e74c3c';
+                        }
                         return {
-                            color: store.type === '711' ? '#27ae60' : '#2980b9',
+                            color: borderColor,
                             weight: 2,
                             opacity: 0.8,
-                            fillColor: store.type === '711' ? '#2ecc71' : '#3498db',
+                            fillColor: fillColor,
                             fillOpacity: 0.2
                         };
                     }
@@ -880,13 +889,6 @@
                     };
                     currentLegend.addTo(map);
                     
-                    // 記得在切換模式時移除 legend
-                    currentLayers.push({
-                        onRemove: function(map) {
-                            map.removeControl(legend);
-                        }
-                    });
-                    
                 } catch (e) {
                     console.error("Turf js error:", e);
                     alert("幾何運算失敗，請確保載入範圍後再試！");
@@ -960,11 +962,20 @@
                     const layer = L.geoJSON({ type: "FeatureCollection", features: voronoiFeatures }, {
                         style: function(feature) {
                             const store = feature.properties.store;
+                            let borderColor = '#2980b9'; // 預設藍
+                            let fillColor = '#3498db';
+                            if (store.type === '711') {
+                                borderColor = '#27ae60';
+                                fillColor = '#2ecc71';
+                            } else if (store.type === 'custom') {
+                                borderColor = '#c0392b'; // 自訂紅
+                                fillColor = '#e74c3c';
+                            }
                             return {
-                                color: store.type === '711' ? '#27ae60' : '#2980b9',
+                                color: borderColor,
                                 weight: 2,
                                 opacity: 1, // 邊界清晰
-                                fillColor: store.type === '711' ? '#2ecc71' : '#3498db',
+                                fillColor: fillColor,
                                 fillOpacity: 0.5 // 提高不透明度展現領域感
                             };
                         }
