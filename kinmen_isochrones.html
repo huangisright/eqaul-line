@@ -915,46 +915,16 @@
                     // 4. 將每個 Voronoi 多邊形與其對應的等時線進行交集 (Intersect)
                     const voronoiFeatures = [];
                     
-                    // turf.voronoi 回傳的順序與輸入的 points 相同
+                    // 替每個 Voronoi 多邊形找到對應的店家，並進行海岸線裁切
                     turf.featureEach(voronoiPolygons, function(currentVoronoi, currentIndex) {
                         if (!currentVoronoi) return; // 有些點可能在邊界外產生不出多邊形
                         
                         const store = filteredStores[currentIndex];
                         
-                        // 找到該店對應的等時線 (allFeatures)
-                        const storeIsochrone = allFeatures.find(f => f.properties.store === store);
-                        
-                        if (storeIsochrone) {
-                            try {
-                                // 將 Voronoi 多邊形與該店的等時線取交集
-                                let intersection = turf.intersect(currentVoronoi, storeIsochrone);
-                                if (!intersection || (intersection.geometry.type !== 'Polygon' && intersection.geometry.type !== 'MultiPolygon' && intersection.geometry.type !== 'GeometryCollection')) {
-                                    intersection = currentVoronoi;
-                                }
-
-                                // 切掉延伸到海面上的 Voronoi 區域
-                                const pieces = getClippedFeatures(intersection);
-                                pieces.forEach(p => {
-                                    if (p && p.geometry && (p.geometry.type === 'Polygon' || p.geometry.type === 'MultiPolygon')) {
-                                        p.properties = { store: store };
-                                        voronoiFeatures.push(p);
-                                    }
-                                });
-                            } catch (e) {
-                                console.warn("Intersect failed for store", store.name, e);
-                                // 交集運算失敗時退回原始 Voronoi，並嘗試裁切海岸線
-                                const fallbackPieces = getClippedFeatures(currentVoronoi);
-                                fallbackPieces.forEach(p => {
-                                    if (p && p.geometry && (p.geometry.type === 'Polygon' || p.geometry.type === 'MultiPolygon')) {
-                                        p.properties = { store: store };
-                                        voronoiFeatures.push(p);
-                                    }
-                                });
-                            }
-                        } else {
-                            // 若等時線抓取失敗，也要畫出原始 Voronoi 避免破洞，並裁切海岸線
-                            const fallbackPieces = getClippedFeatures(currentVoronoi);
-                            fallbackPieces.forEach(p => {
+                        if (store) {
+                            // 直接切掉延伸到海面上的 Voronoi 區域 (只顯示陸地上的絕對領域)
+                            const pieces = getClippedFeatures(currentVoronoi);
+                            pieces.forEach(p => {
                                 if (p && p.geometry && (p.geometry.type === 'Polygon' || p.geometry.type === 'MultiPolygon')) {
                                     p.properties = { store: store };
                                     voronoiFeatures.push(p);
