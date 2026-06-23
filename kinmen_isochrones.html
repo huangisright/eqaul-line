@@ -128,18 +128,33 @@
     <div id="map"></div>
     
     <div class="info-box">
-        <h4 style="margin-top: 0; margin-bottom: 10px;">地圖說明</h4>
-        <p style="margin: 0; font-size: 14px; color: #333;">
-            📍 目前已匯入金門地區 41 間 7-ELEVEN 與全家便利商店位置。<br>
-            🖱️ <b>點擊地圖</b> 可隨時新增「自訂拓點」，測試新店面的覆蓋率與勢力範圍。<br>
-            🗺️ 紅色半透明區域代表以 <strong id="mode-display">走路</strong> 方式，<strong id="time-display">15</strong> 分鐘內可抵達的範圍。<br><br>
+        <h4 style="margin-top: 0; margin-bottom: 10px;">地圖使用說明</h4>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333; line-height: 1.5;">
+            <li>目前已匯入金門地區 41 間 7-ELEVEN 與全家便利商店位置。</li>
+            <li><b>點擊地圖</b>可隨時新增「自訂拓點」，測試新店面的覆蓋率與勢力範圍。</li>
+            <li>紅色半透明區域代表以 <strong id="mode-display">走路</strong> 方式，<strong id="time-display">15</strong> 分鐘內可抵達的範圍。</li>
+        </ul>
+        <p style="margin: 10px 0 0 0; font-size: 14px;">
             <small style="color: #e74c3c;">*更新地圖時，因需逐一運算路線，請耐心等候幾秒鐘。</small>
         </p>
         <hr style="margin: 10px 0; border: 0; border-top: 1px solid #eee;">
-        <p style="margin: 0; font-size: 11px; color: #7f8c8d; line-height: 1.4; text-align: justify;">
-            <b>【研發與協作聲明】</b><br>
-            本網頁系統之開發，採用前沿之「意向導向開發（Vibe Coding）」與團隊協作模式。由組員（學生）擔任功能需求定義者，提出「結合人口加權、等時線圈圈、老闆與客人雙視角分析」之系統藍圖；再由指導老師協助將幾何邏輯轉化為提示詞（Prompt）引導生成式 AI 工具進行 Leaflet.js 前端程式碼之基礎編譯。最終由研究團隊共同進行多階段之功能測試、介面除錯（Debug）與數據驗證，完成此空間決策系統之落地應用。
-        </p>
+        <div style="text-align: right;">
+            <a href="#" onclick="document.getElementById('collab-modal').style.display='flex'; return false;" style="font-size: 11px; color: #95a5a6; text-decoration: none; border-bottom: 1px dashed #95a5a6;">ℹ️ 研發與協作聲明</a>
+        </div>
+    </div>
+
+    <!-- 研發與協作聲明 Modal -->
+    <div id="collab-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 25px; border-radius: 8px; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative; margin: 20px;">
+            <button onclick="document.getElementById('collab-modal').style.display='none'" style="position: absolute; top: 15px; right: 15px; border: none; background: transparent; font-size: 20px; color: #7f8c8d; cursor: pointer; line-height: 1;">&times;</button>
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px; display: inline-block;">關於本系統的開發故事</h3>
+            <p style="font-size: 14px; color: #555; line-height: 1.6; text-align: justify; margin: 0;">
+                這個地圖系統是我們師生團隊與 AI 合作的心血結晶！<br><br>
+                一開始，我們（學生）想出了系統的藍圖：希望能把「人口加權」、「等時線圈圈」，以及「老闆和客人的不同視角」結合在一起來分析超商選址。<br><br>
+                但因為我們還不太會寫進階的程式，所以我們請指導老師幫忙，將我們的幾何邏輯與想法轉化成 AI 聽得懂的「提示詞（Prompt）」，引導 AI 小幫手幫我們寫出 Leaflet.js 的基礎程式碼。<br><br>
+                當然，AI 寫出來的程式並不是馬上就能用！我們團隊後續花了很多時間一起測試功能、抓 Bug（例如把跑到海上的等時線拉回陸地）、比對真實的地理數據，一步步不斷修正，最後才完成這個可以用來做空間決策的實用地圖系統！
+            </p>
+        </div>
     </div>
 
     <!-- 預先運算的資料 (減少 API 請求) -->
@@ -153,8 +168,8 @@
     <script>
         // ==========================================
         // 基本設定與資料
-        // ==========================================
-        const ORS_API_KEY = '5b3ce3597851110001cf6248981d3f947ee14022a106f376f92634de';
+        // ==========================================        // OpenRouteService API Key (使用已知有效的備用 Key)
+        const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImRjNGNkZGY1ZGMxZjQxYmJhNDY1OTcwOWUzZTRmOGMxIiwiaCI6Im11cm11cjY0In0=';
         
         // 追蹤目前的圖例
         let currentLegend = null;
@@ -665,7 +680,8 @@
                             try {
                                 const body = {
                                     locations: chunk.map(s => [s.lng, s.lat]),
-                                    range: [timeSeconds]
+                                    range: [timeSeconds],
+                                    range_type: "time"
                                 };
                                 const response = await fetch(`https://api.openrouteservice.org/v2/isochrones/${selectedMode}`, {
                                     method: 'POST',
