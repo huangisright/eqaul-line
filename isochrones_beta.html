@@ -84,6 +84,70 @@
             max-width: 320px;
             line-height: 1.5;
         }
+
+        /* ========== 手機版 RWD ========== */
+        @media (max-width: 768px) {
+            body {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+            #header {
+                padding: 8px 10px;
+                display: block;
+                flex: 0 0 auto;
+                max-height: 45vh;
+                overflow-y: auto;
+            }
+            h2 {
+                font-size: 16px;
+                margin-bottom: 5px;
+            }
+            .controls {
+                gap: 6px;
+                padding: 6px 8px;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+            .controls label {
+                font-size: 12px;
+            }
+            .controls select, .controls input {
+                font-size: 12px;
+                padding: 4px 6px;
+            }
+            .controls button {
+                font-size: 12px;
+                padding: 5px 10px;
+            }
+            #ext-panel {
+                border-left: none !important;
+                border-top: 1px solid rgba(255,255,255,0.3);
+                padding-left: 0 !important;
+                padding-top: 8px;
+                margin-left: 0 !important;
+                margin-top: 5px;
+                flex-wrap: wrap;
+            }
+            #map {
+                flex: 1 1 auto;
+                height: auto;
+                min-height: 0;
+                width: 100%;
+            }
+            .info-box {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+                padding: 10px;
+                max-height: 30vh;
+                overflow-y: auto;
+                font-size: 12px;
+            }
+            .info-box.collapsed > *:not(h4) { display: none; }
+            .info-box h4 { cursor: pointer; }
+        }
     </style>
 </head>
 <body>
@@ -124,7 +188,7 @@
             <button id="clear-custom-btn" onclick="clearCustomPoints()" style="background-color: #e74c3c; display: none;">清除自訂點</button>
             
             <!-- 全台通用功能擴充區塊 -->
-            <div style="border-left: 2px solid rgba(255,255,255,0.3); padding-left: 15px; margin-left: 5px; display: flex; gap: 10px; align-items: center;">
+            <div id="ext-panel" style="border-left: 2px solid rgba(255,255,255,0.3); padding-left: 15px; margin-left: 5px; display: flex; gap: 10px; align-items: center;">
                 <label style="color: #f1c40f; font-weight: bold;">【全台通用功能擴充】</label>
                 <select id="region-select" style="width: 160px; font-size: 12px; padding: 4px;">
                     <option value="default">請選擇分析區域（預設）</option>
@@ -141,6 +205,16 @@
                         載入歷史匯入數據
                     </label>
                 </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <input type="text" id="placeInput" placeholder="輸入地名，如：台南東區" style="width: 140px; font-size: 11px; padding: 4px;">
+                        <button id="fetchOsmBtn" style="background-color: #16a085; font-size: 11px; padding: 4px 8px;">🌏 自動抓店</button>
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: white; font-size: 12px;">
+                        <input type="checkbox" id="showPopCheck" checked>
+                        自訂點顯示加權消費人口
+                    </label>
+                </div>
             </div>
         </div>
     </div>
@@ -148,11 +222,13 @@
     <div id="map"></div>
     
     <div class="info-box">
-        <h4 style="margin-top: 0; margin-bottom: 10px;">地圖使用說明 (Beta版)</h4>
+        <h4 style="margin-top: 0; margin-bottom: 10px;" onclick="this.parentElement.classList.toggle('collapsed')">地圖使用說明 (Beta版) <span style="font-size:11px;color:#95a5a6;">(手機可點此收合)</span></h4>
         <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #333; line-height: 1.5;">
             <li>目前內建<b>金門全島</b> (41 間) 與<b>台北西門町</b> (35 間) 超商真實座標。</li>
             <li>西門町屬極高密度商圈，系統將自動以<b>步行 1 分鐘</b>來呈現商圈勢力劃分。</li>
             <li>右上方支援<b>上傳 CSV</b> 自訂跨產業座標，並提供<b>點擊地圖</b>新增單點功能，測試拓點覆蓋率。</li>
+            <li><b>🌏 自動抓店</b>：輸入任意地名，自動從 OpenStreetMap 抓取周邊 1.5 公里超商座標。</li>
+            <li><b>📊 加權消費人口</b>：在金門點擊地圖新增自訂拓點，自動以<b>村里層級</b>計算等時線內的「消費量」與 5 分鐘圈「核心消費量」（0.36×壯年＋0.25×學生＋0.1×老幼）。</li>
             <li>半透明區域代表以 <strong id="mode-display">走路</strong> 方式，<strong id="time-display">15</strong> 分鐘內可抵達的真實街道範圍。</li>
         </ul>
         <p style="margin: 10px 0 0 0; font-size: 13px;">
@@ -181,6 +257,10 @@
     <!-- 預先運算的資料 (減少 API 請求) -->
     <script src="precomputed_data.js"></script>
     <script src="kinmen_boundary_fc.js"></script>
+    <!-- 金門五鄉鎮邊界 (人口加權計算備援用) -->
+    <script src="kinmen_towns.js"></script>
+    <!-- 金門 37 村里邊界與人口加權資料 (主要計算來源) -->
+    <script src="kinmen_villages.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Turf JS (幾何運算) -->
@@ -553,6 +633,101 @@
             return validPieces;
         }
 
+        // 輔助函數：用座標找最近的店家 (預算檔比對用，容忍 ORS 把點吸附到路網上的偏移)
+        function findStoreByCoord(stores, lat, lng, maxDeg = 0.006) {
+            let best = null, bestDist = Infinity;
+            stores.forEach(s => {
+                const d = Math.abs(s.lat - lat) + Math.abs(s.lng - lng);
+                if (d < bestDist) { bestDist = d; best = s; }
+            });
+            return (bestDist <= maxDeg) ? best : null; // 約 600 公尺內才算同一家
+        }
+
+        // 輔助函數：分治法合併多個多邊形 (取代逐一 union 的 O(n²) 作法)
+        function unionAll(features) {
+            const valid = features.filter(f => f && f.geometry &&
+                (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+            if (valid.length === 0) return null;
+            let layer = valid;
+            while (layer.length > 1) {
+                const next = [];
+                for (let i = 0; i < layer.length; i += 2) {
+                    if (i + 1 < layer.length) {
+                        try {
+                            const res = turf.union(layer[i], layer[i + 1]);
+                            next.push(res || layer[i]);
+                        } catch (e) {
+                            console.warn("Union skip:", e);
+                            next.push(layer[i]); // 合併失敗時保留其一，避免整批中斷
+                        }
+                    } else {
+                        next.push(layer[i]);
+                    }
+                }
+                layer = next;
+            }
+            return layer[0];
+        }
+
+        // ==========================================
+        // 人口加權消費自動計算 (依科展報告表一與問卷修正後公式)
+        // 加權消費人口 = 0.36×青壯年(18~60) + 0.25×學生(7~17) + 0.1×老幼(0~6、60+)
+        // 假設人口在各鄉鎮內均勻分佈，以等時線覆蓋面積比例估算
+        // ==========================================
+        const kinmenPopData = {
+            "烈嶼鄉": { adult: 8671,  student: 328,  elder: 3333 },
+            "金城鎮": { adult: 28630, student: 1538, elder: 12230 },
+            "金沙鎮": { adult: 14143, student: 651,  elder: 5659 },
+            "金湖鎮": { adult: 21995, student: 1505, elder: 8457 },
+            "金寧鄉": { adult: 26789, student: 829,  elder: 8402 }
+        };
+        const POP_WEIGHTS = { adult: 0.36, student: 0.25, elder: 0.1 };
+
+        let popRegionCache = null;   // 快取各村里(或備援鄉鎮)面積與加權人口，只算一次
+        let popRegionLevel = null;   // 'village' 或 'town'
+        function getPopRegions() {
+            if (popRegionCache) return popRegionCache;
+            // 優先使用村里層級資料 (與科展報告方法一致)
+            if (typeof kinmenVillagesData !== 'undefined' && kinmenVillagesData.features && kinmenVillagesData.features.length > 0) {
+                popRegionLevel = 'village';
+                popRegionCache = kinmenVillagesData.features.map(f => ({
+                    name: f.properties.TOWNNAME + f.properties.VILLNAME,
+                    feature: f, area: turf.area(f), weighted: f.properties.weighted
+                }));
+            } else if (typeof kinmenTownsData !== 'undefined') {
+                // 備援：鄉鎮層級 (報告表一資料)
+                popRegionLevel = 'town';
+                popRegionCache = kinmenTownsData.features.map(f => {
+                    const name = f.properties.TOWNNAME;
+                    const pop = kinmenPopData[name];
+                    const weighted = pop
+                        ? pop.adult * POP_WEIGHTS.adult + pop.student * POP_WEIGHTS.student + pop.elder * POP_WEIGHTS.elder
+                        : 0;
+                    return { name: name, feature: f, area: turf.area(f), weighted: weighted };
+                });
+            } else return null;
+            return popRegionCache;
+        }
+
+        // 計算一條等時線覆蓋的加權消費人口 (回傳總數與各村里明細)
+        function computeWeightedPop(isoFeature) {
+            const regions = getPopRegions();
+            if (!regions) return null;
+            let total = 0;
+            const breakdown = [];
+            regions.forEach(t => {
+                try {
+                    const inter = turf.intersect(isoFeature, t.feature);
+                    if (inter) {
+                        const val = (turf.area(inter) / t.area) * t.weighted;
+                        if (val > 0.5) breakdown.push({ name: t.name, val: val });
+                        total += val;
+                    }
+                } catch (e) { /* 幾何運算失敗時略過該村里 */ }
+            });
+            return { total: total, breakdown: breakdown };
+        }
+
         async function updateMap() {
             if (isFetching) return;
             isFetching = true;
@@ -631,13 +806,21 @@
                 hasPrecomputed = true;
                 const preData = precomputedIsochrones[selectedMode][timeSeconds];
                 
-                // 遍歷預算資料的每個 chunk，透過原始 storesData 的索引對照回真實店家
+                // 遍歷預算資料的每個 chunk，優先用等時線中心座標比對回真實店家
+                // (舊版用 c*5+group_index 的位置對照，一旦店家清單增刪就會整批錯位，故改為座標比對)
                 for (let c = 0; c < preData.length; c++) {
                     const chunkData = preData[c];
                     if (chunkData && chunkData.features) {
                         chunkData.features.forEach(f => {
-                            const globalIndex = c * 5 + f.properties.group_index;
-                            const store = storesData[globalIndex];
+                            let store = null;
+                            if (f.properties && Array.isArray(f.properties.center)) {
+                                store = findStoreByCoord(storesData, f.properties.center[1], f.properties.center[0]);
+                            }
+                            // 座標比對失敗時，退回舊的位置對照法
+                            if (!store) {
+                                const globalIndex = c * 5 + f.properties.group_index;
+                                store = storesData[globalIndex];
+                            }
                             // 只有符合目前篩選條件的店家，才加入 allFeatures
                             if (store && (selectedType === "All" || store.type === selectedType)) {
                                 f.properties.store = store;
@@ -812,6 +995,78 @@
                 }
             });
 
+            // ===== 自訂點：自動計算「消費量 (目前時間圈)」與「核心消費量 (5 分鐘圈)」 =====
+            // 方法對應科展報告：步行 15 分鐘圈定為消費量、5 分鐘圈定為核心消費量
+            const showPopCheck = document.getElementById('showPopCheck');
+            if (showPopCheck && showPopCheck.checked && customStoresData.length > 0) {
+                // 1. 先取得所有自訂點的 5 分鐘核心圈 (300 秒)
+                const coreFeatures = {};
+                if (timeSeconds !== 300) {
+                    const chunks5 = [];
+                    for (let i = 0; i < customStoresData.length; i += 5) chunks5.push(customStoresData.slice(i, i + 5));
+                    for (const chunk of chunks5) {
+                        const cacheKey = `${selectedMode}_300_${chunk.map(s => s.name).join('-')}`;
+                        let data = isochroneCache[cacheKey];
+                        if (!data) {
+                            try {
+                                const response = await fetch(`https://api.openrouteservice.org/v2/isochrones/${selectedMode}`, {
+                                    method: 'POST',
+                                    headers: { 'Authorization': ORS_API_KEY, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ locations: chunk.map(s => [s.lng, s.lat]), range: [300], range_type: "time" })
+                                });
+                                if (response.ok) {
+                                    data = await response.json();
+                                    isochroneCache[cacheKey] = data;
+                                }
+                            } catch (e) { console.warn("Core isochrone fetch error", e); }
+                        }
+                        if (data && data.features) {
+                            data.features.forEach(f => {
+                                const s = chunk[f.properties.group_index];
+                                if (s) coreFeatures[s.name] = f;
+                            });
+                        }
+                    }
+                }
+
+                // 2. 逐一計算並更新彈窗
+                let lastCustomMarker = null;
+                allFeatures.forEach(f => {
+                    const store = f.properties.store;
+                    if (!store || store.type !== 'custom') return;
+                    const m = markers.find(item => item.store === store);
+                    if (!m) return;
+
+                    const result = computeWeightedPop(f);
+
+                    // 核心圈：優先用 API 結果，失敗時以等速圓形估算 (5 分鐘 × 0.8 路網折扣)
+                    let coreFeature = coreFeatures[store.name];
+                    if (!coreFeature && timeSeconds !== 300) {
+                        let speedKmh = selectedMode === 'foot-walking' ? 5 : (selectedMode === 'cycling-regular' ? 15 : 40);
+                        coreFeature = turf.buffer(turf.point([store.lng, store.lat]), Math.max(speedKmh * 300 / 3600 * 0.8, 0.1), { units: 'kilometers' });
+                    }
+                    const coreResult = (timeSeconds === 300) ? result : (coreFeature ? computeWeightedPop(coreFeature) : null);
+
+                    if (result && result.total > 0) {
+                        let html = `<b>${store.name}</b><br>` +
+                            `📊 消費量 (${modeText} ${timeMinutes} 分圈)：<b style="font-size:15px;color:#c0392b;">≈ ${Math.round(result.total).toLocaleString()}</b> 人<br>`;
+                        if (coreResult) {
+                            html += `🎯 核心消費量 (${modeText} 5 分圈)：<b style="color:#8e44ad;">≈ ${Math.round(coreResult.total).toLocaleString()}</b> 人<br>`;
+                        }
+                        result.breakdown.sort((a, b) => b.val - a.val).slice(0, 4).forEach(b => {
+                            html += `<small>・${b.name}：約 ${Math.round(b.val).toLocaleString()} 人</small><br>`;
+                        });
+                        html += `<small style="color:#7f8c8d;">0.36×壯年＋0.25×學生＋0.1×老幼，` +
+                            (popRegionLevel === 'village' ? '村里層級' : '鄉鎮層級') + `面積比例估算</small>`;
+                        m.marker.setPopupContent(html);
+                    } else {
+                        m.marker.setPopupContent(`<b>${store.name}</b><br>此點等時線未覆蓋金門任一村里<br><small>(人口計算僅支援金門地區)</small>`);
+                    }
+                    lastCustomMarker = m.marker;
+                });
+                if (lastCustomMarker) lastCustomMarker.openPopup();
+            }
+
             // 若抓取失敗或無資料，提前中止
             if (allFeatures.length === 0) {
                 alert("API 請求失敗或超過限制。按鈕將進入 60 秒冷卻倒數，請稍後再試！\n\n💡 提示：輸入 5, 10, 15, 20, 25, 30 分鐘可直接使用快取，無須冷卻！");
@@ -889,18 +1144,9 @@
                     // 因為 Turf dissolve 要求所有的幾何圖形都是 Polygon 且屬性相同最好，
                     // 所以我們直接把所有 features 丟給 turf.union 或者 dissolve
                     
-                    let mergedIsochrones = allFeatures[0];
-                    for (let i = 1; i < allFeatures.length; i++) {
-                        try {
-                            // 修正 Turf 6 中 union 接收兩個 polygon 的語法
-                            let res = turf.union(mergedIsochrones, allFeatures[i]);
-                            if (res) mergedIsochrones = res;
-                        } catch(e) {
-                            console.warn("Union skip:", e);
-                        }
-                    }
-
-
+                    // 使用分治法合併，效能由 O(n²) 降為 O(n log n)，資料量大時不再卡頓
+                    let mergedIsochrones = unionAll(allFeatures);
+                    if (!mergedIsochrones) throw new Error("無有效多邊形可合併");
 
                     const clippedIsochrones = getClippedFeatures(mergedIsochrones);
                     mergedIsochrones = turf.featureCollection(clippedIsochrones);
@@ -1233,13 +1479,7 @@
                         }
                     }).addTo(extMarkerLayer);
                 } else if (analysisMode === 'uncovered') {
-                    let merged = features[0];
-                    for (let i = 1; i < features.length; i++) {
-                        try {
-                            let res = turf.union(merged, features[i]);
-                            if (res) merged = res;
-                        } catch(e) {}
-                    }
+                    let merged = unionAll(features) || features[0];
                     L.geoJSON(merged, {
                         style: { color: '#2c3e50', weight: 2, fillColor: '#2c3e50', fillOpacity: 0.6 }
                     }).addTo(extMarkerLayer);
@@ -1370,6 +1610,67 @@
                         alert("解析 CSV 發生錯誤: " + err.message);
                     }
                 });
+            });
+
+            // ==========================================
+            // 任意地區自動抓店 (Nominatim 定位 + Overpass 抓超商)
+            // ==========================================
+            document.getElementById('fetchOsmBtn').addEventListener('click', async function() {
+                const q = document.getElementById('placeInput').value.trim();
+                if (!q) { alert("請先輸入地名，例如：台南東區、嘉義市西區"); return; }
+                const btn = this;
+                btn.disabled = true;
+                btn.innerText = "定位中...";
+                try {
+                    // 1. Nominatim 地理編碼：地名 → 座標
+                    const geoRes = await fetch(
+                        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+                        { headers: { 'Accept-Language': 'zh-TW' } }
+                    );
+                    const geo = await geoRes.json();
+                    if (!geo || geo.length === 0) {
+                        alert("找不到這個地名，請換個關鍵字（建議加上縣市名）！");
+                        return;
+                    }
+                    const lat = parseFloat(geo[0].lat), lon = parseFloat(geo[0].lon);
+
+                    // 2. Overpass API：抓中心點 1.5 公里內的便利商店
+                    btn.innerText = "抓取超商中...";
+                    const query = `[out:json][timeout:25];node["shop"="convenience"](around:1500,${lat},${lon});out body 80;`;
+                    const opRes = await fetch('https://overpass-api.de/api/interpreter', {
+                        method: 'POST',
+                        body: 'data=' + encodeURIComponent(query)
+                    });
+                    const op = await opRes.json();
+                    const stores = (op.elements || []).map(el => ({
+                        brand: (el.tags && (el.tags.name || el.tags.brand)) || "便利商店",
+                        latitude: el.lat,
+                        longitude: el.lon
+                    }));
+                    if (stores.length === 0) {
+                        alert(`「${geo[0].display_name}」附近 1.5 公里內找不到便利商店資料。`);
+                        return;
+                    }
+
+                    // 3. 套入現有的自訂匯入流程 (與 CSV 匯入共用)
+                    localStorage.setItem('custom_gis_data', JSON.stringify(stores));
+                    customDataCache = stores;
+                    // 店家太多時改用估算圓形，避免瞬間打爆免費 API 配額
+                    const useApi = stores.length <= 25;
+                    btn.innerText = useApi ? "下載真實路線中..." : "繪製估算範圍中...";
+                    const { bounds, hasValidPoints } = await renderExtMarkers(stores, `${q}（OSM 自動抓店）`, useApi);
+                    document.getElementById('region-select').value = 'default';
+                    document.getElementById('showHistoryCheck').checked = true;
+                    extMarkerLayer.addTo(map);
+                    if (hasValidPoints) map.fitBounds(bounds, { padding: [30, 30] });
+                    alert(`成功抓取 ${stores.length} 家便利商店！` + (useApi ? "" : "\n(數量較多，以估算圓形範圍顯示以節省 API 配額)"));
+                } catch (e) {
+                    console.error("OSM fetch error:", e);
+                    alert("自動抓店失敗：" + e.message + "\n可能是 OSM 伺服器忙碌，請稍後再試。");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "🌏 自動抓店";
+                }
             });
 
             // 清除按鈕邏輯
