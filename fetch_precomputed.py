@@ -6,8 +6,10 @@ import sys
 
 html_path = 'kinmen_isochrones.html'
 js_out_path = 'precomputed_data.js'
-ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImRjNGNkZGY1ZGMxZjQxYmJhNDY1OTcwOWUzZTRmOGMxIiwiaCI6Im11cm11cjY0In0='
-
+import os
+ORS_API_KEY = os.environ.get('ORS_API_KEY', '')
+if not ORS_API_KEY:
+    raise SystemExit('請先設定環境變數 ORS_API_KEY，例如：export ORS_API_KEY=你的金鑰')
 with open(html_path, 'r', encoding='utf-8') as f:
     html = f.read()
 

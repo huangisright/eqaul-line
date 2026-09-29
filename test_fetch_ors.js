@@ -15,7 +15,7 @@ const body = {
 fetch('https://api.openrouteservice.org/v2/isochrones/foot-walking', {
     method: 'POST',
     headers: {
-        'Authorization': '5b3ce3597851110001cf6248981d3f947ee14022a106f376f92634de',
+        'Authorization': process.env.ORS_API_KEY,
         'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)

@@ -1,7 +1,57 @@
         // ==========================================
         // 基本設定與資料
         // ==========================================
-        const ORS_API_KEY = '5b3ce3597851110001cf6248981d3f947ee14022a106f376f92634de';
+        // ==========================================
+        // OpenRouteService 金鑰（不寫在程式碼裡）
+        // 預先算好的等時線不需要金鑰；只有即時計算（自訂時間、自訂點、補抓缺漏資料）才會要求。
+        // 使用者貼上的金鑰只存在自己的瀏覽器（localStorage），不會上傳到 GitHub。
+        // ==========================================
+        const ORS_API_KEY = '';
+        const ORS_KEY_STORAGE = 'ors_api_key';
+        // 只有在使用者剛操作過（點擊／按鍵／切換選項）時才會跳出輸入框，
+        // 避免訪客一打開網頁就被要求輸入金鑰。
+        let orsLastGesture = 0;
+        let orsDeclinedAt = -1;
+        ['click', 'keydown', 'change'].forEach(function (ev) {
+            window.addEventListener(ev, function () { orsLastGesture = Date.now(); }, true);
+        });
+        function getOrsKey() {
+            let k = '';
+            try { k = localStorage.getItem(ORS_KEY_STORAGE) || ''; } catch (e) {}
+            if (k) return k;
+            const recentGesture = orsLastGesture > 0 && (Date.now() - orsLastGesture) < 8000;
+            if (!recentGesture || orsDeclinedAt === orsLastGesture) return '';
+            k = (window.prompt('這個功能需要即時向 OpenRouteService 計算等時線。\n請貼上你自己的免費 API 金鑰（到 openrouteservice.org 註冊即可取得）。\n金鑰只會存在你的瀏覽器。\n\n按「取消」則只使用預先算好的資料。') || '').trim();
+            if (!k) { orsDeclinedAt = orsLastGesture; return ''; }
+            try { localStorage.setItem(ORS_KEY_STORAGE, k); } catch (e) {}
+            return k;
+        }
+        function clearOrsKey() {
+            try { localStorage.removeItem(ORS_KEY_STORAGE); } catch (e) {}
+            orsDeclinedAt = -1;
+            alert('已清除這個瀏覽器中儲存的金鑰。');
+        }
+        (function () {
+            const originalFetch = window.fetch.bind(window);
+            window.fetch = function (url, opts) {
+                const u = (typeof url === 'string') ? url : (url && url.url) || '';
+                if (u.indexOf('https://api.openrouteservice.org') === 0) {
+                    const k = getOrsKey();
+                    if (!k) return Promise.reject(new Error('未設定 OpenRouteService 金鑰，略過即時計算'));
+                    opts = Object.assign({}, opts || {});
+                    opts.headers = Object.assign({}, opts.headers || {}, { 'Authorization': k });
+                }
+                return originalFetch(url, opts);
+            };
+            window.addEventListener('DOMContentLoaded', function () {
+                const b = document.createElement('button');
+                b.textContent = '清除 API 金鑰';
+                b.title = '清除存在這個瀏覽器中的 OpenRouteService 金鑰';
+                b.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:9999;font-size:12px;padding:4px 8px;opacity:.7;cursor:pointer';
+                b.onclick = clearOrsKey;
+                document.body.appendChild(b);
+            });
+        })();
         
         // 追蹤目前的圖例
         let currentLegend = null;

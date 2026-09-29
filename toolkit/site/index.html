@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可及性分析工具（等時線）</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  body { margin:0; font-family:'Segoe UI','Microsoft JhengHei',sans-serif; overflow:hidden; }
+  #header { background:#2c3e50; color:#fff; padding:10px 16px; z-index:1000; position:relative;
+            display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  #header h2 { margin:0; font-size:18px; }
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+              background:rgba(255,255,255,.1); padding:6px 12px; border-radius:8px; font-size:13px; }
+  .controls select,.controls input[type=text] { padding:4px 6px; border-radius:4px; border:1px solid #ccc; font-size:13px; }
+  .controls button { background:#3498db; color:#fff; border:none; padding:6px 14px; border-radius:4px;
+                     cursor:pointer; font-size:13px; font-weight:bold; }
+  .controls button:disabled { background:#95a5a6; cursor:not-allowed; }
+  #map { width:100vw; height:calc(100vh - 56px); }
+  .info-box { position:absolute; bottom:20px; left:20px; z-index:1000; background:#fff; padding:12px 15px;
+              border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.25); max-width:340px; line-height:1.6;
+              font-size:13px; max-height:45vh; overflow-y:auto; }
+  .info-box h4 { margin:0 0 6px; font-size:14px; }
+  .stat b { color:#2c3e50; }
+  #candidate-hint { color:#f1c40f; font-size:12px; }
+  @media (max-width:768px){
+    #header{display:block; max-height:40vh; overflow-y:auto;}
+    #map{height:calc(100vh - 140px);}
+    .info-box{left:10px; right:10px; max-width:none; font-size:12px;}
+  }
+</style>
+</head>
+<body>
+<div id="header">
+  <h2 id="title">可及性分析工具</h2>
+  <div class="controls">
+    <label>設施：<select id="group-select"><option value="ALL">全部</option></select></label>
+    <label>交通方式：<select id="profile-select"></select></label>
+    <label>時間：<select id="time-select"></select></label>
+    <button id="update-btn">更新地圖</button>
+  </div>
+  <div class="controls">
+    <label><input type="checkbox" id="candidate-check"> 候選點模式</label>
+    <input type="text" id="ors-key" placeholder="貼上你的 ORS 金鑰（候選點需要）" size="26">
+    <button id="clear-candidates">清除候選點</button>
+    <span id="candidate-hint"></span>
+  </div>
+</div>
+<div id="map"></div>
+<div class="info-box" id="info"><h4>統計資訊</h4><div id="info-body">請按「更新地圖」開始分析。</div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<script src="data.js"></script>
+<script>
+"use strict";
+const PROFILE_NAMES = { "foot-walking":"步行", "cycling-regular":"自行車", "driving-car":"開車" };
+
+// ---------- 初始化 UI ----------
+document.getElementById("title").innerText = APP_DATA.project_name;
+document.title = APP_DATA.project_name;
+const groupSel = document.getElementById("group-select");
+APP_DATA.pois.groups.forEach(g => {
+  const o = document.createElement("option"); o.value = g.id; o.innerText = g.label; groupSel.appendChild(o);
+});
+const profileSel = document.getElementById("profile-select");
+APP_DATA.profiles.forEach(p => {
+  const o = document.createElement("option"); o.value = p; o.innerText = PROFILE_NAMES[p] || p; profileSel.appendChild(o);
+});
+const timeSel = document.getElementById("time-select");
+APP_DATA.ranges_minutes.forEach(m => {
+  const o = document.createElement("option"); o.value = m; o.innerText = m + " 分鐘"; timeSel.appendChild(o);
+});
+
+// ---------- 地圖 ----------
+const map = L.map("map");
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { attribution:"&copy; OpenStreetMap contributors | openrouteservice.org" }).addTo(map);
+let boundaryFeature = null;
+if (APP_DATA.boundary) {
+  boundaryFeature = APP_DATA.boundary.features[0];
+  const bl = L.geoJSON(APP_DATA.boundary, { style:{ color:"#2c3e50", weight:2, fill:false, dashArray:"6 4" } }).addTo(map);
+  map.fitBounds(bl.getBounds());
+} else {
+  const all = APP_DATA.pois.groups.flatMap(g => g.stores);
+  map.fitBounds(all.map(s => [s.lat, s.lng]));
+}
+
+// ---------- 幾何工具 ----------
+// 分治法合併多邊形，比逐一 union 的 O(n²) 快得多
+function unionAll(features) {
+  let layer = features.filter(f => f && f.geometry &&
+    (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon"));
+  if (!layer.length) return null;
+  while (layer.length > 1) {
+    const next = [];
+    for (let i = 0; i < layer.length; i += 2) {
+      if (i + 1 < layer.length) {
+        try { next.push(turf.union(layer[i], layer[i+1]) || layer[i]); }
+        catch (e) { console.warn("union skip", e); next.push(layer[i]); }
+      } else next.push(layer[i]);
+    }
+    layer = next;
+  }
+  return layer[0];
+}
+
+// 人口區域快取（先算好面積與 bbox，之後用 bbox 快篩）
+let popRegions = null;
+function getPopRegions() {
+  if (popRegions || !APP_DATA.population) return popRegions;
+  const P = APP_DATA.population;
+  popRegions = P.regions.features
+    .filter(f => f.geometry)
+    .map(f => ({
+      name: (P.name_properties || []).map(k => f.properties[k] || "").join(""),
+      weighted: Number(f.properties[P.weight_property]) || 0,
+      area: turf.area(f), bbox: turf.bbox(f), feature: f
+    }));
+  return popRegions;
+}
+function bboxOverlap(a, b) { return a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3]; }
+
+// 計算一塊覆蓋範圍的加權人口（假設人口在區域內均勻分布）
+function weightedPop(coverFeature) {
+  const regions = getPopRegions();
+  if (!regions) return null;
+  const cb = turf.bbox(coverFeature);
+  let total = 0; const breakdown = [];
+  regions.forEach(r => {
+    if (!bboxOverlap(cb, r.bbox)) return;           // bbox 不相交直接跳過
+    try {
+      const inter = turf.intersect(coverFeature, r.feature);
+      if (inter) {
+        const v = (turf.area(inter) / r.area) * r.weighted;
+        total += v;
+        if (v > 0.5) breakdown.push({ name: r.name, v });
+      }
+    } catch (e) { /* 幾何運算失敗時略過 */ }
+  });
+  breakdown.sort((a, b) => b.v - a.v);
+  return { total, breakdown };
+}
+function totalPop() {
+  const r = getPopRegions();
+  return r ? r.reduce((s, x) => s + x.weighted, 0) : null;
+}
+
+// ---------- 主要更新 ----------
+let layers = [], legendUnion = null;
+function clearLayers() { layers.forEach(l => map.removeLayer(l)); layers = []; }
+
+function currentFeatures() {
+  const gid = groupSel.value, profile = profileSel.value;
+  const sec = String(parseInt(timeSel.value) * 60);
+  const byGroup = (APP_DATA.isochrones[profile] || {})[sec] || {};
+  const ids = gid === "ALL" ? Object.keys(byGroup) : [gid];
+  return ids.flatMap(id => byGroup[id] || []);
+}
+
+function updateMap() {
+  clearLayers();
+  const gid = groupSel.value;
+  // 店家標記
+  APP_DATA.pois.groups.forEach(g => {
+    if (gid !== "ALL" && g.id !== gid) return;
+    g.stores.forEach(s => {
+      const m = L.circleMarker([s.lat, s.lng],
+        { radius:5, color:"#fff", weight:1.5, fillColor:g.color, fillOpacity:1 })
+        .bindPopup(`<b>${s.name}</b><br>${g.label}`);
+      m.addTo(map); layers.push(m);
+    });
+  });
+  // 等時線聯集
+  const feats = currentFeatures();
+  if (!feats.length) {
+    document.getElementById("info-body").innerHTML =
+      "此組合沒有預計算資料。<br>請確認 config.json 的 profiles / ranges_minutes 後重跑 pipeline。";
+    return;
+  }
+  let merged = unionAll(feats);
+  if (boundaryFeature && merged) {
+    try { merged = turf.intersect(merged, boundaryFeature) || merged; } catch (e) {}
+  }
+  legendUnion = merged;
+  const cover = L.geoJSON(merged, { style:{ color:"#3498db", weight:1.5, fillColor:"#3498db", fillOpacity:.35 } }).addTo(map);
+  layers.push(cover);
+
+  // 統計
+  const areaKm2 = turf.area(merged) / 1e6;
+  let html = `<div class="stat">覆蓋面積：<b>${areaKm2.toFixed(2)} km²</b></div>`;
+  if (boundaryFeature) {
+    const pct = areaKm2 / (turf.area(boundaryFeature) / 1e6) * 100;
+    html += `<div class="stat">占全區面積：<b>${pct.toFixed(1)}%</b></div>`;
+  }
+  const pop = weightedPop(merged);
+  if (pop) {
+    const tp = totalPop();
+    html += `<div class="stat">覆蓋加權消費人口：<b>${Math.round(pop.total).toLocaleString()}</b>`
+          + (tp ? `（占 ${(pop.total / tp * 100).toFixed(1)}%）` : "") + `</div>`;
+    html += `<details><summary>前 10 名區域明細</summary>` +
+      pop.breakdown.slice(0, 10).map(b => `${b.name}: ${Math.round(b.v)}`).join("<br>") + `</details>`;
+  }
+  html += `<div style="color:#888;margin-top:4px">時間：${timeSel.value} 分鐘（${PROFILE_NAMES[profileSel.value] || profileSel.value}）</div>`;
+  document.getElementById("info-body").innerHTML = html;
+}
+document.getElementById("update-btn").addEventListener("click", updateMap);
+
+// ---------- 候選點模式（研究「再開一間店要開在哪」） ----------
+let candidateLayers = [];
+document.getElementById("clear-candidates").addEventListener("click", () => {
+  candidateLayers.forEach(l => map.removeLayer(l)); candidateLayers = [];
+  document.getElementById("candidate-hint").innerText = "";
+});
+
+map.on("click", async (e) => {
+  if (!document.getElementById("candidate-check").checked) return;
+  const key = document.getElementById("ors-key").value.trim();
+  const hint = document.getElementById("candidate-hint");
+  if (!key) { hint.innerText = "請先貼上 ORS 金鑰才能計算候選點等時線"; return; }
+  hint.innerText = "計算中…";
+  try {
+    const sec = parseInt(timeSel.value) * 60;
+    const resp = await fetch(`https://api.openrouteservice.org/v2/isochrones/${profileSel.value}`, {
+      method: "POST",
+      headers: { "Authorization": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ locations: [[e.latlng.lng, e.latlng.lat]], range: [sec], range_type: "time" })
+    });
+    if (!resp.ok) throw new Error("API 回應 " + resp.status);
+    const data = await resp.json();
+    let iso = data.features[0];
+    if (boundaryFeature) { try { iso = turf.intersect(iso, boundaryFeature) || iso; } catch (err) {} }
+
+    // 新增覆蓋 = 候選點等時線 扣掉 既有店家已覆蓋的範圍
+    let gain = iso;
+    if (legendUnion) { try { gain = turf.difference(iso, legendUnion); } catch (err) {} }
+
+    const mk = L.marker(e.latlng).addTo(map);
+    const isoLayer = L.geoJSON(iso, { style:{ color:"#e67e22", weight:2, fillColor:"#e67e22", fillOpacity:.25 } }).addTo(map);
+    candidateLayers.push(mk, isoLayer);
+
+    let msg = `候選點覆蓋 ${(turf.area(iso) / 1e6).toFixed(2)} km²`;
+    if (gain) {
+      msg += `，其中新增覆蓋 ${(turf.area(gain) / 1e6).toFixed(2)} km²`;
+      const gl = L.geoJSON(gain, { style:{ color:"#c0392b", weight:1, fillColor:"#e74c3c", fillOpacity:.45 } }).addTo(map);
+      candidateLayers.push(gl);
+      const gp = weightedPop(gain);
+      if (gp) msg += `，新增服務加權人口約 ${Math.round(gp.total).toLocaleString()} 人`;
+    } else {
+      msg += "，完全落在既有覆蓋範圍內（沒有新增服務區）";
+    }
+    mk.bindPopup(msg).openPopup();
+    hint.innerText = "";
+  } catch (err) {
+    hint.innerText = "候選點計算失敗：" + err.message;
+  }
+});
+</script>
+</body>
+</html>

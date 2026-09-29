@@ -1,0 +1,12 @@
+# 金鑰與個人設定：不要上傳
+.env
+*.env
+*.local.json
+*.local.js
+config.local.*
+
+# 補抓資料時產生的備份
+*.bak
+
+# macOS
+.DS_Store
